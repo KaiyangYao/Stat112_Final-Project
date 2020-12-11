@@ -19,35 +19,7 @@ library(RColorBrewer)
 
 ```
 
-```{r}
-us_airports <- read_csv("Data/us-airports.csv")
-airport_codes <- read_csv("Data/airport_codes.csv")
-```
 
-```{r}
-airport_loc <- us_airports %>% 
-  select(latitude_deg, longitude_deg, iata_code)
-
-airport_info <- airport_codes %>% 
-  left_join(airport_loc,
-            by = c("Airport Code" = "iata_code"))
-```
-
-```{r}
-airport_info
-```
-
-
-```{r}
-# Todo: Change the markers to photos
-leaflet(data = airport_info) %>% 
-  addProviderTiles("CartoDB.VoyagerLabelsUnder") %>% 
-  addCircles(lng = ~longitude_deg, 
-             lat = ~latitude_deg, 
-             label = ~`Airport Name`,
-             color = "grey",
-             weight = 8) 
-```
 
 
 
