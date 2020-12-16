@@ -1,0 +1,197 @@
+---
+title: "Ideas_V1"
+author: "Kaiyang Yao"
+date: "12/16/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(lubridate) 
+library(readr)
+library(ggmap)
+library(leaflet)
+library(geosphere)
+```
+
+```{r}
+us_airports <- read_csv("Data/us-airports.csv")
+airport_codes <- read_csv("Data/airport_codes.csv")
+```
+
+```{r}
+airport_loc <- us_airports %>% 
+  select(latitude_deg, longitude_deg, iata_code)
+
+airport_info <- airport_codes %>% 
+  left_join(airport_loc,
+            by = c("Airport Code" = "iata_code"))
+```
+
+```{r}
+airport_info
+```
+
+
+"Icon made by Chanut from www.flaticon.com"
+
+```{r}
+airportIcon <- makeIcon(iconUrl = "Icons/airport.png", 
+                        iconWidth = 30, 
+                        iconHeight = 30)
+
+leaflet(data = airport_info) %>% 
+  addProviderTiles("CartoDB.VoyagerLabelsUnder") %>% 
+  addMarkers(lng = ~longitude_deg, 
+             lat = ~latitude_deg, 
+             label = ~`Airport Name`,
+             icon = ~airportIcon,
+             clusterOptions = markerClusterOptions(freezeAtZoom = 7))
+```
+
+
+# Making connections using gcIntermediate 
+```{r}
+ATL_connections <- data.frame(long = double(), lat = double(),
+                            start = character(), end = character())
+
+DTW_connections <- data.frame(long = double(), lat = double(),
+                            start = character(), end = character())
+
+MSP_connections <- data.frame(long = double(), lat = double(),
+                            start = character(), end = character())
+
+SLC_connections <- data.frame(long = double(), lat = double(),
+                            start = character(), end = character())
+
+
+ATL_coord <- c(airport_info$longitude_deg[1], airport_info$latitude_deg[1])
+DTW_coord <- c(airport_info$longitude_deg[10], airport_info$latitude_deg[10])
+MSP_coord <- c(airport_info$longitude_deg[16], airport_info$latitude_deg[16])
+SLC_coord <- c(airport_info$longitude_deg[24], airport_info$latitude_deg[24])
+
+for (i in 1:nrow(airport_info)) {
+  End_coord <- c(airport_info$longitude_deg[i], airport_info$latitude_deg[i])
+  curr_airport <- airport_info$`Airport Code`[i]
+  
+  if (curr_airport != "ATL") {
+    inter_ATL <- data.frame(gcIntermediate(ATL_coord, End_coord, n=50, addStartEnd=TRUE, breakAtDateLine=F))
+    inter_ATL$start <- rep("ATL", nrow(inter_ATL))
+    inter_ATL$end <- rep(curr_airport, nrow(inter_ATL))
+    ATL_connections <- rbind(ATL_connections, inter_ATL)
+  }
+  
+  if (curr_airport != "DAL" & curr_airport != "DTW") {
+    inter_DTW <- data.frame(gcIntermediate(DTW_coord, End_coord, n=50, addStartEnd=TRUE, breakAtDateLine=F))
+    inter_DTW$start <- rep("DTW", nrow(inter_DTW))
+    inter_DTW$end <- rep(curr_airport, nrow(inter_DTW))
+    DTW_connections <- rbind(DTW_connections, inter_DTW)
+  }
+  
+  if (curr_airport != "DAL" & curr_airport != "MSP") {
+    inter_MSP <- data.frame(gcIntermediate(MSP_coord, End_coord, n=50, addStartEnd=TRUE, breakAtDateLine=F))
+    inter_MSP$start <- rep("MSP", nrow(inter_MSP))
+    inter_MSP$end <- rep(curr_airport, nrow(inter_MSP))
+    MSP_connections <- rbind(MSP_connections, inter_MSP)
+  }
+  
+    if (curr_airport != "DAL" & curr_airport != "LGA" & curr_airport != "SLC") {
+    inter_SLC <- data.frame(gcIntermediate(SLC_coord, End_coord, n=50, addStartEnd=TRUE, breakAtDateLine=F))
+    inter_SLC$start <- rep("SLC", nrow(inter_SLC))
+    inter_SLC$end <- rep(curr_airport, nrow(inter_SLC))
+    SLC_connections <- rbind(SLC_connections, inter_SLC)
+  }
+          
+}
+```
+
+
+
+# Making maps
+```{r}
+states_map <- ggplot() +
+  geom_map(data = map_data("state"),
+           map = map_data("state"),
+           aes(x = long, y = lat, map_id = region),
+           fill = "aliceblue", color = "black")
+
+ATL_map <- 
+states_map +
+  geom_point(data = airport_info,
+             aes(x = longitude_deg, y = latitude_deg)) +
+  geom_line(data = ATL_connections, 
+            aes(x = lon, y = lat, color = end)) +
+  theme(legend.position = "none")
+
+DTW_map <-
+states_map +
+  geom_point(data = airport_info,
+             aes(x = longitude_deg, y = latitude_deg)) +
+  geom_line(data = DTW_connections, 
+            aes(x = lon, y = lat, color = end)) +
+  theme(legend.position = "none")
+
+MSP_map <-
+states_map +
+  geom_point(data = airport_info,
+             aes(x = longitude_deg, y = latitude_deg)) +
+  geom_line(data = MSP_connections, 
+            aes(x = lon, y = lat, color = end)) +
+  theme(legend.position = "none")
+
+SLC_map <-
+states_map +
+  geom_point(data = airport_info,
+             aes(x = longitude_deg, y = latitude_deg)) +
+  geom_line(data = SLC_connections, 
+            aes(x = lon, y = lat, color = end)) +
+  theme(legend.position = "none")
+```
+
+
+# Plotting multiplot maps
+```{r}
+multiplot <- function(..., plotlist=NULL, cols) {
+    require(grid)
+
+    # Make a list from the ... arguments and plotlist
+    plots <- c(list(...), plotlist)
+
+    numPlots = length(plots)
+
+    # Make the panel
+    plotCols = cols                          # Number of columns of plots
+    plotRows = ceiling(numPlots/plotCols) # Number of rows needed, calculated from # of cols
+
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(plotRows, plotCols)))
+    vplayout <- function(x, y)
+        viewport(layout.pos.row = x, layout.pos.col = y)
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+        curRow = ceiling(i/plotCols)
+        curCol = (i-1) %% plotCols + 1
+        print(plots[[i]], vp = vplayout(curRow, curCol ))
+    }
+
+}
+
+multiplot(ATL_map, DTW_map, MSP_map, SLC_map, cols=2)
+```
+
+
+
+
+
+
+
+
+
+
+
